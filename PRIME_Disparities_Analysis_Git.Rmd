@@ -1,0 +1,105 @@
+---
+title: "PRIME Metrics Analysis"
+subtitle: "Automated Disparity Search "
+author: Daniel Brown / YOUR NAME HERE
+email: dbrown7@cchealth.org / YOUR EMAIL
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  pdf_document:
+    toc: true
+    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(xtable)
+library(data.table)
+library(knitr)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(glmnet)
+```
+
+
+```{r, results='asis', eval=(knitr::opts_knit$get('rmarkdown.pandoc.to') == 'latex'), echo = FALSE}
+cat('\\newpage')
+```
+
+# PRIME Automated Disparity Search 
+
+This report explores the largest disparities in Contra Costa Health System's population along each of the key PRIME measures. The goal is to identify which demographic variables have the strongest association with each of the measures. Identifying these factors, and particularly those associated with worse metric performance, highlights which populations are receiving reduced care quality. Program staff can then focus improvement efforts on those populations to effectively improve both reporting metrics and the quality and equity of care.
+
+## Demographic Factors and Methods
+
+This analysis is based off a snapshot of the PRIME population as of December 31, 2018. For each of the 44 PRIME measures, we compare patient outcomes using 10 different demographic factors. These are:
+
+1. **Age**, which is analyzed two ways:
+    + Categorical (0-12, 13-17, 18-29, 30-39, 40-49, 50-59, 60-69, 70-79, 80+)
+    + Continuous 
+
+2. **Race/Ethnicity** as:
+    + (American Indian/Alaska Native, Asian, Black/African American, Declined/Unknown, Hawaiian/Pacific Islander, "Hispanic", "More Than One Race, Other Race, White/Caucasian)
+
+3. **Sex** as:
+    + (Female, Male, Trans/Unknown)
+
+4. **Language** as:
+    + (English, Other, Spanish, Tagalog, Vietnamese)
+
+5. **Insurance** as:
+    + (BHC, CCHP Commercial, CCHP Medi-Cal, CCHP Medicare, FFS Medi-Cal, FFS Medicare, Other, Uninsured)
+    
+6. **Gender Identity** as:
+    + (Female, Male, Trans/Queer, Unknown)
+  
+7. **Sexual Orientation** as:
+    + (Homosexual, Straight, Unknown)
+
+8. **Clinic** as:
+    + (Antioch, Bay Point, Brentwood, Concord CHC2 and Willow Pass, Martinez, Miller Wellness, North Richmond, NULL, Pittsburg, West County)
+
+We reduced the number of potential levels for many factors and regrouped as 'Other' when there were levels with insufficient people in them to support an analysis. In general, factor levels with less than 8000 patients across all PRIME metrics were removed and regrouped into the catch-all levels.
+  
+We use three different methodologic approaches to identify population disparities in PRIME metric outcomes. The first is multivariate logisitic regression, in which we build a model of the association between all demographic factors and the outcome of interest. This allows us to look at the effect of each of the factors individually, controlling for the effects of each of the others. The second is a classification tree, which finds the nested subsets of the data with the largest difference in the outcome level. Analysis of this tree allows us to identify the combinations of factors that, when taken together, identify the populations with the highest and lowest outcome levels. The final approach is to perform variable importance from a random forest modelling approach, which combines a number of classification trees together to form a predicitive algorithm. These importance measures identify the variables that have the strongest predictive influence on our outcome, and therefore are the strongest drivers of disparity.
+
+```{r mysetup, echo = FALSE}
+md <- readRDS('../data/PRIME_DATA_EXTRACT.RDS')
+
+#Provide list of variables to be included in the list of potential disparity axes 
+
+newvs <- c("AGE_", "RACE_ETH_", "SEX_", "LANGUAGE_", "GENDER_", "SEX_ORIENT_", "CLINIC_", "INSURANCE_")
+
+f1 <- as.formula(paste("NUMERATOR", paste(newvs, collapse = " + "), sep = " ~ "))
+
+f2 <- as.formula(paste("factor(NUMERATOR)", paste(newvs, collapse = " + "), sep = " ~ "))
+```
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
+out <- NULL
+ct <- length(levels(md$MEASURE_ID))
+table.list <- list()
+node.list <- list()
+name.list <- list()
+id.list1 <- list()
+id.list2 <- list()
+
+for (k in 1:ct){
+  mss <- levels(md$MEASURE_ID)[k]
+  sd <- subset(md, MEASURE_ID == mss)
+  msn <- sd$MEASURE_NAME[1]
+  name.list[[(length(name.list) + 1)]] <- msn
+  rev.state <- ifelse(sd$TARGET_IS_DOWN[1] == 1, "not ", "")
+  env <- new.env()
+  print(k)
+  out <- c(out, knit_child("AnalysisLoop_Git.Rmd", envir = globalenv()))
+}
+save.image("XXXXX.RData")
+```
+
+`r paste(out, collapse = "\n")`
+
+
+
+

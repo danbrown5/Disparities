@@ -1,0 +1,106 @@
+```{r, results='asis', eval=(knitr::opts_knit$get('rmarkdown.pandoc.to') == 'latex'), echo = FALSE}
+cat('\\pagebreak')
+```
+
+```{r, echo = FALSE}
+denom <- prettyNum(nrow(sd), big.mark = ",")
+d.ct <- nrow(sd)
+num <- prettyNum(sum(sd$NUMERATOR == 1) , big.mark = ",")
+ratio <- round(sum(sd$NUMERATOR)/nrow(sd), 3)
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+  mm <- model.matrix(c1, data = sd)
+  if (length(levels(factor(sd$NUMERATOR))) > 2){
+    sd.glm <- cv.glmnet(x = mm, y = sd$NUMERATOR, family = "gaussian", alpha = 0.95)
+    glm.coef <- as.matrix(coef(sd.glm, s = "lambda.1se"))
+    nn.gc <- as.matrix(cbind(row.names(glm.coef)[glm.coef != 0], round(glm.coef[glm.coef != 0,], 4)))
+    tab.cap <- "Linear Regression Parameters"
+    #tab.cap <- paste("Regression Parameters for Linear Regression Predicting PRIME Measure:", mss, sep = " ")
+  }else{
+    sd.glm <- cv.glmnet(x = mm, y = sd$NUMERATOR, family = "binomial", alpha = 0.95)
+    glm.coef <- as.matrix(coef(sd.glm, s = "lambda.1se"))
+    nn.gc <- as.matrix(cbind(row.names(glm.coef)[glm.coef != 0],round(exp(glm.coef[glm.coef != 0,]), 2)))
+    tab.cap <- "Logistic Regression Parameters"
+    #tab.cap <- paste("Odds Ratios for Logistic Regression Predicting PRIME Measure:", mss, sep = " ")
+  }
+  if(exists("glm.coef")){
+    table.list[[length(table.list) + 1]] <- glm.coef
+    id.list1[[length(id.list1) + 1]] <- mss
+  }
+}
+```
+
+#`r mss`
+Below, we present the automated disparity search results for PRIME measure `r msn` (`r mss`). 
+A total of `r denom` people contributed to the calculation of measure `r mss`. A total of `r num` had a value of '1' for it, resulting in a final value of `r ratio`. In order to ensure that a value of 1 in the numerator represented an undesirable event, this measure was `r rev.state`taken to be the inverse of that reported in the PRIME dashboard.
+
+##Multivariate Analysis
+
+```{r, results = 'asis', echo = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+print(xtable(nn.gc, caption = tab.cap), table.placement = c("htbp!"), comment = FALSE, include.rownames = FALSE)
+}else{
+print("No Further Analysis Done - Insufficient Variability")
+}
+```
+
+##Classification Tree
+
+```{r, echo = FALSE, results = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+sdpart <- rpart(c1, data = sd, method = 'class', control = rpart.control(minbucket = 10, cp = 0, maxdepth = 4))
+cptab <- sdpart$cptable
+
+#This sets the optimal pruning position for the tree - if you don't use maxdepth. But including maxdepth trims the tree significantly - adds interpretability, but loss of precision.......
+
+fincp.row <- ifelse(length(which(cptab[,'xerror'] > min(cptab[,"xerror"]) + cptab[min(which(cptab[,'xerror'] == min(cptab[,'xerror']))),'xstd']))==0, 1, max(which(cptab[,'xerror'] > min(cptab[,"xerror"]) + cptab[min(which(cptab[,'xerror'] == min(cptab[,'xerror']))),'xstd'])))
+fincp <- cptab[fincp.row,'CP']
+sd.fincp <- prune(sdpart, cp = fincp)
+rp.title <- paste("Best Predicitive Partition Model for \n PRIME Measure:", mss, sep = " ")
+#printcp(sd.fincp)
+}
+```
+
+```{r, echo = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+rpart.plot(sdpart, main = rp.title)
+sd.party <- as.party(sdpart)
+sd.party
+party.tab <- round(100*prop.table(do.call("table", fitted(sd.party)), 1), 1)
+if(length(colnames(party.tab)) == 2){colnames(party.tab) <- c("% with 1", "% with 0")}
+if(length(row.names(party.tab)) >= 1){row.names(party.tab) <- paste("Node", row.names(party.tab), sep = " ")}
+if(exists("party.tab")){
+  node.list[[(length(node.list) + 1)]] <- party.tab
+  id.list2[[(length(id.list2) + 1)]] <- mss 
+}
+#partcap <- paste("Distribution of PRIME measure: ", " by Tree Node", sep = mss)
+}
+```
+The lines below describe each node in the tree pictured above. Each line includes first the splitting decision, than the size of the population in that node, then the number potentially misclassified, the best guess of outcome for the node, and finally the proportion of the population in that node with a '1' for their numerator for this measure. 
+
+```{r, results = 'asis', echo = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+print(sdpart)
+}
+```
+This table shows the proportion of the population with a '1' for the numerator by node number.
+
+```{r, results = 'asis', echo = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+print.xtable(xtable(party.tab, caption = "Distribution of PRIME Numerator by Tree Node"), table.placement = c("htbp!"), comment = FALSE)
+}
+```
+
+##Variable Importance
+
+```{r, echo = FALSE, results = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+rfit <- randomForest(f2, data = sd)
+vitit <- paste("Variable Importance Plot For \n PRIME Measure:", mss, sep = " ")
+}
+```
+
+```{r, echo = FALSE}
+if(ratio < 0.995 & ratio > 0.005 & d.ct > 50){
+varImpPlot(rfit, main = vitit)
+}
+```
